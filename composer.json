@@ -4,7 +4,7 @@
     "type": "library",
     "keywords": ["finteza","analytics","tracking","proxy","statistics"],
     "homepage": "https://www.finteza.com",
-    "license": "BSD 3-Clause",
+    "license": "BSD-3-Clause",
     "authors": [
         {
             "name": "Finteza Ltd.",
