@@ -1,8 +1,8 @@
 {
     "name": "finteza/finteza-php-sdk",
-    "description": "Official SDK for sending events to Finteza servers and proxying analytics requests through the your site.",
+    "description": "The official sdk for sending events to Finteza servers and proxying analytical requests via the website.",
     "type": "library",
-    "keywords": ["finteza","analytics","tracking","proxy"],
+    "keywords": ["finteza","analytics","tracking","proxy","statistics"],
     "homepage": "https://www.finteza.com",
     "license": "BSD 3-Clause",
     "authors": [
@@ -12,5 +12,7 @@
         }
     ],
     "minimum-stability": "stable",
-    "require": {}
+    "require": {
+        "php": ">=5.3.0"
+    }
 }
