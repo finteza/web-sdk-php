@@ -187,8 +187,12 @@ class FintezaAnalytics
         $parsedUrl = parse_url($url);
 
         $path = $this->_path;
-        $protocol = $_SERVER['REQUEST_SCHEME'].'://';
-        //var_dump($_SERVER);
+        $protocol = $_SERVER['SERVER_PORT'] == 443 ? "https://" : "http://";
+        $port = '';
+        if ($_SERVER['SERVER_PORT'] != 443 && $_SERVER['SERVER_PORT'] != 80) {
+            $port = ':'.$_SERVER['SERVER_PORT'];
+        }
+
         if (substr($path, 0, 1) != '/') {
             $path = '/' . $path;
         }
@@ -196,13 +200,13 @@ class FintezaAnalytics
         if (preg_match('/core\.js$/', $url) !== false
             && preg_match('/core\.js$/', $url) !== 0
         ) {
-            $params['host'] = $protocol . $_SERVER['HTTP_HOST'] . $path;
+            $params['host'] = $protocol . $_SERVER['SERVER_NAME'] . $port . $path;
         }
         // Handle amp.js
         if (preg_match('/amp\.js$/', $url) !== false
             && preg_match('/amp\.js$/', $url) !== 0
         ) {
-            $params['host'] = $protocol . $_SERVER['HTTP_HOST'] . $path;
+            $params['host'] = $protocol . $_SERVER['SERVER_NAME'] . $port . $path;
         }
         // Append query string for GET requests
         if ($method == 'GET'
