@@ -30,6 +30,8 @@ Inputs:
 | websiteId * | string | Website ID. It can be obtained in the website settings (`ID` field) of the [Finteza panel](https://panel.finteza.com/). |
 | url | string | Optional. Finteza server address. |
 | referer | string | Optional. Host of a website SDK is called on. |
+| value | number | Optional. Additional parameter value. |
+| unit | string | Optional. Additional parameter measurement units, for example, USD, items, etc. The maximum length is 32 symbols. |
 
 Example:
 
@@ -62,10 +64,10 @@ Example:
 ```
 use FintezaAnalytics;
 
-// proxy request 
-FintezaAnalytics::proxy( array( 
-    "path" => "/fz", 
-    "token" => "lopvkgcafvwoprrxlopvkgcafvwfzsrx" 
+// proxy request
+FintezaAnalytics::proxy( array(
+    "path" => "/fz",
+    "token" => "lopvkgcafvwoprrxlopvkgcafvwfzsrx"
 ) );
 ```
 

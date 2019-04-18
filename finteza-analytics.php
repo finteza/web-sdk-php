@@ -166,7 +166,10 @@ class FintezaAnalytics
         return $fsdk->_sendEvent(
             isset($options['name']) ? $options['name'] : null,
             isset($options['backReferer']) ? $options['backReferer'] : null,
-            isset($options['userIp']) ? $options['userIp'] : null
+            isset($options['userIp']) ? $options['userIp'] : null,
+            isset($options['userAgent']) ? $options['userAgent'] : null,
+            isset($options['value']) ? $options['value'] : null,
+            isset($options['unit']) ? $options['unit'] : null
         );
     }
 
@@ -183,17 +186,23 @@ class FintezaAnalytics
         $url = $this->_createRequestUrl();
         $parsedUrl = parse_url($url);
 
+        $path = $this->_path;
+        $protocol = $_SERVER['REQUEST_SCHEME'].'://';
+        //var_dump($_SERVER);
+        if (substr($path, 0, 1) != '/') {
+            $path = '/' . $path;
+        }
         // Handle core.js
         if (preg_match('/core\.js$/', $url) !== false
             && preg_match('/core\.js$/', $url) !== 0
         ) {
-            $params['host'] = 'https://' . $_SERVER['SERVER_NAME'] . '/fz';
+            $params['host'] = $protocol . $_SERVER['HTTP_HOST'] . $path;
         }
         // Handle amp.js
         if (preg_match('/amp\.js$/', $url) !== false
             && preg_match('/amp\.js$/', $url) !== 0
         ) {
-            $params['host'] = 'https://' . $_SERVER['SERVER_NAME'] . '/fz';
+            $params['host'] = $protocol . $_SERVER['HTTP_HOST'] . $path;
         }
         // Append query string for GET requests
         if ($method == 'GET'
@@ -202,7 +211,6 @@ class FintezaAnalytics
         ) {
             $url .= '?' . http_build_query($params);
         }
-
         // Send request
         $response = $this->_sendRequest($url, $headers, $params, $method);
         $responseContent = $this->_processResponse($response);
@@ -222,11 +230,20 @@ class FintezaAnalytics
      * @param string      $name        Event name
      * @param string|null $backReferer Back referer for event
      * @param string|null $userIp      User client ip for event
+     * @param string|null $userAgent   User-Agent for event
+     * @param string|null $value       Value param
+     * @param string|null $unit        Unit for value param
      *
      * @return bool True if event was sent successfully; otherwise, False
      */
-    private function _sendEvent($name,$backReferer = null,$userIp = null)
-    {
+    private function _sendEvent(
+        $name,
+        $backReferer = null,
+        $userIp = null,
+        $userAgent = null,
+        $value = null,
+        $unit = null
+    ) {
         if (empty($name)) {
             return false;
         }
@@ -245,6 +262,12 @@ class FintezaAnalytics
         if (!is_null($backReferer) && !empty($backReferer)) {
             $query .= '&back_ref=' . urlencode($backReferer);
         }
+        if (!is_null($value) && !empty($value)) {
+            $query .= '&value=' . urlencode($value);
+        }
+        if (!is_null($unit) && !empty($unit)) {
+            $query .= '&unit=' . urlencode($unit);
+        }
 
         $parts = parse_url($url);
         $parts['path'] .= '?'.$query;
@@ -258,13 +281,16 @@ class FintezaAnalytics
             );
             $parts['path'] .= '?'.$query;
             $out = "GET ".$parts['path']." HTTP/1.1\r\n";
+            $out.= "Host: ".$parts['host']."\r\n";
             if (!is_null($userIp) && !empty($userIp)) {
                 $out.= "X-Forwarded-For: ".$userIp."\r\n";
                 $out.= "X-Forwarded-For-Sign: "
                     .md5($userIp . ':' . $this->_token)
                     ."\r\n";
             }
-            $out.= "Host: ".$parts['host']."\r\n";
+            if (!is_null($userAgent) && !empty($userAgent)) {
+                $out.= "User-Agent: ".$userAgent."\r\n";
+            }
             $out.= "Connection: Close\r\n\r\n";
             fwrite($fp, $out);
             fclose($fp);
@@ -400,14 +426,16 @@ class FintezaAnalytics
             curl_setopt($request, CURLOPT_POST, true);
             curl_setopt($request, CURLOPT_POSTFIELDS, $postData);
         }
-
+        
         // retrieve response (headers and content)
         $response = curl_exec($request);
+        if (curl_errno($request)) {
+            return '';
+        }
         curl_close($request);
         if (false === $response) {
             $response = '';
         }
-
         return $response;
     }
 
