@@ -187,9 +187,7 @@ class FintezaAnalytics
         $parsedUrl = parse_url($url);
 
         $path = $this->_path;
-        $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                || $_SERVER['SERVER_PORT'] == 443 
-            ) ? "https://" : "http://";
+        $protocol = "//";
         $port = '';
         if ($_SERVER['SERVER_PORT'] != 443 && $_SERVER['SERVER_PORT'] != 80) {
             $port = ':'.$_SERVER['SERVER_PORT'];
@@ -437,7 +435,6 @@ class FintezaAnalytics
             curl_setopt($request, CURLOPT_POST, true);
             curl_setopt($request, CURLOPT_POSTFIELDS, $postData);
         }
-        
         // retrieve response (headers and content)
         $response = curl_exec($request);
         if (curl_errno($request)) {
