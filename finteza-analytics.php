@@ -285,6 +285,11 @@ class FintezaAnalytics
                 $errstr,
                 5
             );
+
+            if ($fp === false) {
+                return false;
+            }
+
             $parts['path'] .= '?'.$query;
             $out = "GET ".$parts['path']." HTTP/1.1\r\n";
             $out.= "Host: ".$parts['host']."\r\n";
