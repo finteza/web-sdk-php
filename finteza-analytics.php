@@ -39,9 +39,16 @@ class FintezaAnalytics
      * Default value for url
      * Used if url did not specified in functions call
      *
-     * @@const string
+     * @const string
      */
     const DEFAULT_URL = "https://content.mql5.com";
+
+    /**
+     * Default user-agent for server-side events
+     * 
+     * @const string
+     */
+    const DEFAULT_USER_AGENT = 'FintezaPHP/1.0';
 
     /**
      * Proxy cookies list
@@ -104,40 +111,33 @@ class FintezaAnalytics
         $url,
         $path,
         $websiteId,
-        $referer = null,
-        $token = null
+        $referer,
+        $token
     ) {
-        $this->_url = (is_null($url) || empty($url)) ? self::DEFAULT_URL : $url;
-        $this->_token = $token;
+
+        // default values
+        $url = (is_null($url) || empty($url)) ? self::DEFAULT_URL : $url;
+        $path = (is_null($path) || empty($path)) ? '/' : $path;
+        $websiteId = (is_null($websiteId) || empty($websiteId)) ? '' : $websiteId;
+
+        // check referer
+        if (is_null($referer) || empty($referer)) {
+            $is_ssl = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+            $referer = $is_ssl ? 'https' : 'http';
+            $referer .= "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+        }
+
+        // check path
+        if (substr($path, 0, 1) != '/') {
+            $path = '/' . $path;
+        }
+
+        // save options
+        $this->_url = $url;
         $this->_path = $path;
         $this->_websiteId = $websiteId;
         $this->_referer = $referer;
-    }
-
-    /**
-     * Transfer client requests to Finteza server
-     *
-     * @param array $options Options
-     *
-     * @return null Nothing
-     *
-     * @see https://www.finteza.com/developer/sdks/php/
-     */
-    public static function proxy($options)
-    {
-        if (is_null($options)) {
-            return;
-        }
-
-        $fsdk = new self(
-            isset($options['url']) ? $options['url'] : null,
-            isset($options['path']) ? $options['path'] : null,
-            null,
-            null,
-            isset($options['token']) ? $options['token'] : null
-        );
-
-        $fsdk->_proxyTrack();
+        $this->_token = $token;
     }
 
     /**
@@ -147,7 +147,7 @@ class FintezaAnalytics
      *
      * @return bool True if request was sent successfully; otherwise False;
      *
-     * @see https://www.finteza.com/developer/sdks/php/
+     * @see https://www.finteza.com/en/integrations/php-sdk/php-sdk-events
      */
     public static function event($options)
     {
@@ -156,76 +156,23 @@ class FintezaAnalytics
         }
 
         $fsdk = new self(
-            isset($options['url']) ? $options['url'] : null,
+            $options['url'],
             null,
-            isset($options['websiteId']) ? $options['websiteId'] : null,
-            isset($options['referer']) ? $options['referer'] : null,
-            isset($options['token']) ? $options['token'] : null
+            $options['websiteId'],
+            $options['referer'],
+            $options['token']
         );
 
         return $fsdk->_sendEvent(
             isset($options['name']) ? $options['name'] : null,
             isset($options['backReferer']) ? $options['backReferer'] : null,
             isset($options['userIp']) ? $options['userIp'] : null,
-            isset($options['userAgent']) ? $options['userAgent'] : null,
+            isset($options['userAgent'])
+                ? $options['userAgent']
+                : DEFAULT_USER_AGENT,
             isset($options['value']) ? $options['value'] : null,
             isset($options['unit']) ? $options['unit'] : null
         );
-    }
-
-    /**
-     * Set headers and outputs proxy content
-     *
-     * @return null Nothing
-     */
-    private function _proxyTrack()
-    {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $headers = $this->_createRequestHeaders();
-        $params = $this->_createRequestParams($method);
-        $url = $this->_createRequestUrl();
-        $parsedUrl = parse_url($url);
-
-        $path = $this->_path;
-        $protocol = "//";
-        $port = '';
-        if ($_SERVER['SERVER_PORT'] != 443 && $_SERVER['SERVER_PORT'] != 80) {
-            $port = ':'.$_SERVER['SERVER_PORT'];
-        }
-
-        if (substr($path, 0, 1) != '/') {
-            $path = '/' . $path;
-        }
-        // Handle core.js
-        if (preg_match('/core\.js$/', $url) !== false
-            && preg_match('/core\.js$/', $url) !== 0
-        ) {
-            $params['host'] = $protocol . $_SERVER['HTTP_HOST'] . $port . $path;
-        }
-        // Handle amp.js
-        if (preg_match('/amp\.js$/', $url) !== false
-            && preg_match('/amp\.js$/', $url) !== 0
-        ) {
-            $params['host'] = $protocol . $_SERVER['HTTP_HOST'] . $port . $path;
-        }
-        // Append query string for GET requests
-        if ($method == 'GET'
-            && count($params) > 0
-            && (!array_key_exists('query', $parsedUrl) || empty($parsedUrl['query']))
-        ) {
-            $url .= '?' . http_build_query($params);
-        }
-        // Send request
-        $response = $this->_sendRequest($url, $headers, $params, $method);
-        $responseContent = $this->_processResponse($response);
-
-        // Remove headers
-        header_remove('X-Powered-By');
-        header_remove('Server');
-
-        // Output result
-        print($responseContent);
-        exit;
     }
 
     /**
@@ -242,71 +189,162 @@ class FintezaAnalytics
      */
     private function _sendEvent(
         $name,
-        $backReferer = null,
-        $userIp = null,
-        $userAgent = null,
-        $value = null,
-        $unit = null
+        $backReferer,
+        $userIp,
+        $userAgent,
+        $value,
+        $unit
     ) {
+        // check event name
         if (empty($name)) {
             return false;
         }
 
+        // replace spaces
         $name = str_replace(' ', '+', $name);
 
-        $url = $this->_url;
-        if (!preg_match('/\/$/', $url)) {
-            $url .= '/';
-        }
-        
-        $url .= 'tr?';
-        $query = 'id=' . urlencode($this->_websiteId);
-        $query .= '&event=' . urlencode($name);
-        $query .= '&ref=' . urlencode($this->_referer);
+        // add path
+        $path = '/tr?';
+
+        // add params
+        $path .= 'id=' . urlencode($this->_websiteId);
+        $path .= '&event=' . urlencode($name);
+        $path .= '&ref=' . urlencode($this->_referer);
+
         if (!is_null($backReferer) && !empty($backReferer)) {
-            $query .= '&back_ref=' . urlencode($backReferer);
+            $path .= '&back_ref=' . urlencode($backReferer);
         }
         if (!is_null($value) && !empty($value)) {
-            $query .= '&value=' . urlencode($value);
+            $path .= '&value=' . urlencode($value);
         }
         if (!is_null($unit) && !empty($unit)) {
-            $query .= '&unit=' . urlencode($unit);
+            $path .= '&unit=' . urlencode($unit);
         }
 
-        $parts = parse_url($url);
-        $parts['path'] .= '?'.$query;
+        // send request
+        try
+        {
+            // get host
+            $host = parse_url($this->_url)['host'];
 
-        try {
-            $fp = stream_socket_client(
-                'ssl://'.$parts['host'].':443',
-                $errno,
-                $errstr,
-                5
-            );
-
+            // create connect
+            $errno = '';
+            $errstr = '';
+            $fp = stream_socket_client('ssl://'. $host . ':443', $errno, $errstr, 5);
             if ($fp === false) {
                 return false;
             }
 
-            $parts['path'] .= '?'.$query;
-            $out = "GET ".$parts['path']." HTTP/1.1\r\n";
-            $out.= "Host: ".$parts['host']."\r\n";
+            // build headers
+            $out  = "GET " . $path . " HTTP/1.1\r\n";
+            $out .= "Host: " . $host . "\r\n";
+
             if (!is_null($userIp) && !empty($userIp)) {
-                $out.= "X-Forwarded-For: ".$userIp."\r\n";
-                $out.= "X-Forwarded-For-Sign: "
-                    .md5($userIp . ':' . $this->_token)
-                    ."\r\n";
+                $out .= "X-Forwarded-For: " . $userIp . "\r\n";
+                $out .= "X-Forwarded-For-Sign: "
+                     . md5($userIp . ':' . $this->_token)
+                     . "\r\n";
             }
+
             if (!is_null($userAgent) && !empty($userAgent)) {
-                $out.= "User-Agent: ".$userAgent."\r\n";
+                $out .= "User-Agent: " . $userAgent . "\r\n";
             }
-            $out.= "Connection: Close\r\n\r\n";
+
+            $out .= "Connection: Close\r\n\r\n";
+
+            // connect and close
             fwrite($fp, $out);
             fclose($fp);
             return true;
-        } catch (Exception $ex) {
+        }
+        catch (Exception $ex)
+        {
             return false;
         }
+    }
+
+    /**
+     * Transfer client requests to Finteza server
+     *
+     * @param array $options Options
+     *
+     * @return null Nothing
+     *
+     * @see https://www.finteza.com/en/integrations/php-sdk/php-sdk-proxy
+     */
+    public static function proxy($options)
+    {
+        if (is_null($options)) {
+            return;
+        }
+
+        $fsdk = new self(
+            isset($options['url']) ? $options['url'] : null,
+            isset($options['path']) ? $options['path'] : null,
+            null,
+            null,
+            isset($options['token']) ? $options['token'] : null
+        );
+
+        $fsdk->_proxyRequest();
+    }
+
+    /**
+     * Set headers and outputs proxy content
+     *
+     * @return null Nothing
+     */
+    private function _proxyRequest()
+    {
+        // get request properties
+        $request_method = $_SERVER['REQUEST_METHOD'];
+        $request_host = $_SERVER['HTTP_HOST'];
+        $request_uri = $_SERVER['REQUEST_URI'];
+        $request_port = $_SERVER['SERVER_PORT'];
+        $request_params = $_GET;
+        $request_body = file_get_contents('php://input');
+
+        // create proxy headers
+        $proxy_headers = $this->_getProxyHeaders();
+
+        // create proxy URI (without domain and params)
+        $proxy_uri = $request_uri;
+        if (substr($proxy_uri, 0, strlen($this->_path)) == $this->_path) {
+            $proxy_uri = substr($proxy_uri, strlen($this->_path));
+        }
+
+        // counter scripts handler
+        $has_corejs = preg_match('/core\.js$/', $proxy_uri) === 1;
+        $has_ampjs = preg_match('/amp\.js$/', $proxy_uri) === 1;
+
+        if ($has_corejs || $has_ampjs) {
+            $proxy_host = '//' . $request_host;
+            if ($request_port != 443 && $request_port != 80) {
+                $proxy_host .= ':' . $request_port;
+            }
+
+            $has_params = strpos($proxy_uri, '?') !== false;
+            $proxy_uri .= ($has_params ? '&' : '?');
+            $proxy_uri .= 'host=' . urlencode($proxy_host) . $this->_path;
+        }
+
+        // execute request
+        $response = $this->_sendProxyRequest(
+            $request_method,
+            $proxy_uri,
+            $proxy_headers,
+            $request_body
+        );
+
+        // parse response
+        $responseContent = $this->_parseProxyResponse($request_method, $response);
+
+        // remove headers
+        header_remove('X-Powered-By');
+
+        // return response
+        print($responseContent);
+        exit;
     }
 
     /**
@@ -314,7 +352,7 @@ class FintezaAnalytics
      *
      * @return array Headers for request
      */
-    private function _createRequestHeaders()
+    private function _getProxyHeaders()
     {
         // Identify request headers
         $headers = array();
@@ -362,63 +400,20 @@ class FintezaAnalytics
     }
 
     /**
-     * Create request params array for request to finteza server
-     *
-     * @param string $method Request method
-     *
-     * @return string|null Request params array or query string
-     */
-    private function _createRequestParams($method)
-    {
-        if ('GET' == $method) {
-            $params = $_GET;
-        } elseif ('POST' == $method) {
-            $params = $_POST;
-            if (empty($params)) {
-                $data = file_get_contents('php://input');
-                if (!empty($data)) {
-                    $params = $data;
-                }
-            }
-        } else {
-            $params = null;
-        }
-
-        return $params;
-    }
-
-    /**
-     * Create request URL to finteza server
-     *
-     * @return string
-     */
-    private function _createRequestUrl()
-    {
-        $currentUri = parse_url($_SERVER['REQUEST_URI']);
-        $requestUrl = '';
-        $cPath = $currentUri['path'];
-
-        if (substr($cPath, 0, strlen($this->_path)) == $this->_path) {
-            $requestUrl = $this->_url . substr($cPath, strlen($this->_path));
-        }
-
-        return $requestUrl;
-    }
-
-    /**
      * Sends request to finteza server
      *
-     * @param string       $url     Request URL
-     * @param array        $headers Request headers string
-     * @param array|string $params  Request params array or query string
-     * @param string       $method  Request method
+     * @param string $method  Request method
+     * @param string $uri     Request URI
+     * @param array  $headers Request headers
+     * @param string $body    Request body
      *
      * @return string
      */
-    private function _sendRequest($url, $headers, $params, $method)
+    private function _sendProxyRequest($method, $uri, $headers, $body)
     {
+
         // let the request begin
-        $request = curl_init($url);
+        $request = curl_init($this->_url . $uri);
 
         // (re-)send headers
         curl_setopt($request, CURLOPT_HTTPHEADER, $headers);
@@ -429,35 +424,53 @@ class FintezaAnalytics
         // enabled response headers
         curl_setopt($request, CURLOPT_HEADER, true);
 
-        // add data for POST, PUT or DELETE requests
-        if ('POST' == $method) {
-            $postData = is_array($params) ? http_build_query($params) : $params;
+        // set timeout
+        curl_setopt($request, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($request, CURLOPT_TIMEOUT, 10);
+
+        // add data for POST-request
+        if ($method == 'POST') {
             curl_setopt($request, CURLOPT_POST, true);
-            curl_setopt($request, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($request, CURLOPT_POSTFIELDS, $body);
+            curl_setopt($request, CURLOPT_HTTPHEADER, array("Expect:"));
         }
+
         // retrieve response (headers and content)
         $response = curl_exec($request);
+
+        // check errors
         if (curl_errno($request)) {
             return '';
         }
+
+        // close connect
         curl_close($request);
-        if (false === $response) {
+
+        // check response
+        if ($response == false) {
             $response = '';
         }
+
         return $response;
     }
 
     /**
      * Sets response headers and returns response content
      *
+     * @param object $method   Request method
      * @param object $response Response handle object
      *
      * @return string Response content
      */
-    private function _processResponse($response)
+    private function _parseProxyResponse($method, $response)
     {
         // split response to header and content
         list($headers, $content) = preg_split('/(\r\n){2}/', $response, 2);
+
+        // no parse POST-requests
+        if ($method == 'POST') {
+            return $content;
+        }
 
         // (re-)send the headers
         $headers = preg_split('/(\r\n){1}/', $headers);
@@ -466,7 +479,7 @@ class FintezaAnalytics
             // Process non-cookies header
             if (substr($header, 0, strlen('Set-Cookie:')) !== 'Set-Cookie:') {
                 if (!preg_match('/^(Transfer-Encoding):/', $header)) {
-                    header($header, false);
+                    header($header, true);
                 }
                 continue;
             }
@@ -476,7 +489,6 @@ class FintezaAnalytics
 
             $cookies = '';
             foreach ($matches[1] as $item) {
-
                 if (!in_array($item, $this->_proxyCookies)) {
                     continue;
                 }
@@ -499,7 +511,7 @@ class FintezaAnalytics
             }
 
             if (!empty($cookies)) {
-                header('Set-Cookie:' . $cookies, false);
+                header('Set-Cookie:' . $cookies, true);
             }
 
             continue;
