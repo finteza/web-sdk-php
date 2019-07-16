@@ -13,7 +13,7 @@ Use the [Сomposer](http://getcomposer.org/download/) package manager to install
 Run the following command from the console:
 
 ```
-composer require finteza-analytics
+composer require finteza/finteza-php-sdk
 ```
 
 ## Usage
@@ -35,7 +35,7 @@ Inputs:
 
 Example:
 
-```
+```php
 use FintezaAnalytics;
 
 // sending event
@@ -61,7 +61,7 @@ Inputs:
 
 Example:
 
-```
+```php
 use FintezaAnalytics;
 
 // proxy request
