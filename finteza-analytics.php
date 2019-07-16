@@ -169,7 +169,7 @@ class FintezaAnalytics
             isset($options['userIp']) ? $options['userIp'] : null,
             isset($options['userAgent'])
                 ? $options['userAgent']
-                : DEFAULT_USER_AGENT,
+                : self::DEFAULT_USER_AGENT,
             isset($options['value']) ? $options['value'] : null,
             isset($options['unit']) ? $options['unit'] : null
         );
